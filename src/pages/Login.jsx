@@ -1,26 +1,42 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { LogIn, Mail, Lock, AlertCircle, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { LogIn, Mail, Lock, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleLoginSubmit = (e) => {
+  const { user, login } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // If already authenticated, redirect to destination or home
+  useEffect(() => {
+    if (user) {
+      const destination = location.state?.from?.pathname || '/';
+      navigate(destination, { replace: true });
+    }
+  }, [user, navigate, location]);
+
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
     setSuccessMessage('');
 
+    const trimmedEmail = email.trim();
+
     // Frontend validation
-    if (!email.trim()) {
+    if (!trimmedEmail) {
       setErrorMessage('Please enter your NITJ college email address.');
       return;
     }
 
-    if (!email.includes('@') || !email.includes('.')) {
-      setErrorMessage('Please enter a valid email format (e.g. rollno@nitj.ac.in).');
+    if (!trimmedEmail.toLowerCase().endsWith('@nitj.ac.in')) {
+      setErrorMessage('Please use your official @nitj.ac.in student email.');
       return;
     }
 
@@ -29,15 +45,30 @@ export default function Login() {
       return;
     }
 
-    if (password.length < 6) {
-      setErrorMessage('Password must be at least 6 characters.');
-      return;
-    }
+    setIsSubmitting(true);
 
-    // Demo notification (no real auth)
-    setSuccessMessage(
-      `Frontend form validation passed for ${email}! (Notice: Backend authentication has not been implemented yet).`
-    );
+    try {
+      const { data, error } = await login({
+        email: trimmedEmail,
+        password,
+      });
+
+      if (error) {
+        setErrorMessage(error.message);
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (data?.session) {
+        setSuccessMessage('Login successful! Redirecting...');
+        const destination = location.state?.from?.pathname || '/';
+        navigate(destination, { replace: true });
+      }
+    } catch (err) {
+      setErrorMessage(err.message || 'An unexpected error occurred during login.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -50,17 +81,8 @@ export default function Login() {
           </div>
           <h1 className="auth-title">Welcome Back</h1>
           <p className="auth-subtitle">
-            Sign in to access your student marketplace listings
+            Sign in with your NITJ credentials to access the student marketplace
           </p>
-        </div>
-
-        {/* Demo Warning Banner */}
-        <div className="demo-notice-banner">
-          <ShieldCheck size={16} />
-          <span>
-            <strong>Phase 2 Demo:</strong> Real authentication is not connected.
-            Form validates locally on the frontend.
-          </span>
         </div>
 
         {/* Error Alert */}
@@ -95,9 +117,10 @@ export default function Login() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 autoComplete="email"
+                disabled={isSubmitting}
               />
             </div>
-            <span className="field-hint">Use your official NITJ email address</span>
+            <span className="field-hint">Use your official NITJ email address (@nitj.ac.in)</span>
           </div>
 
           <div className="form-group">
@@ -105,15 +128,6 @@ export default function Login() {
               <label htmlFor="login-password" className="form-label">
                 Password
               </label>
-              <button
-                type="button"
-                className="forgot-link-btn"
-                onClick={() =>
-                  alert('Password recovery will be available in Phase 3.')
-                }
-              >
-                Forgot password?
-              </button>
             </div>
             <div className="input-with-icon">
               <Lock size={17} className="field-icon" />
@@ -125,13 +139,27 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 autoComplete="current-password"
+                disabled={isSubmitting}
               />
             </div>
           </div>
 
-          <button type="submit" className="btn-curved-black auth-submit-btn">
-            <LogIn size={17} />
-            <span>Log In</span>
+          <button
+            type="submit"
+            className="btn-curved-black auth-submit-btn"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 size={17} className="spin-icon" />
+                <span>Signing in...</span>
+              </>
+            ) : (
+              <>
+                <LogIn size={17} />
+                <span>Log In</span>
+              </>
+            )}
           </button>
         </form>
 

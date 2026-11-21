@@ -1,55 +1,79 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { CATEGORIES } from '../constants/categories';
+import { createListing } from '../services/listingService';
 import ProductCard from '../components/ProductCard';
 import {
   PlusCircle,
   Image as ImageIcon,
   AlertCircle,
   CheckCircle2,
-  Info,
   ArrowLeft,
   RotateCcw,
+  Loader2,
+  ExternalLink,
+  ListOrdered,
 } from 'lucide-react';
 
 const CONDITIONS = ['Like New', 'Good', 'Fair'];
 
 export default function SellProduct() {
+  const { user } = useAuth();
+
   const [formData, setFormData] = useState({
     name: '',
     category: CATEGORIES[0] || 'Books',
     price: '',
     condition: 'Good',
     description: '',
-    imageUrl: '',
   });
 
+  const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [errorMessage, setErrorMessage] = useState('');
-  const [createdPreviewProduct, setCreatedPreviewProduct] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [createdProduct, setCreatedProduct] = useState(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Local file selection preview (Frontend only - no external upload)
+  // Image file selection & thumbnail preview
   const handleImageFileChange = (e) => {
     const file = e.target.files?.[0];
     if (file) {
-      const localUrl = URL.createObjectURL(file);
-      setImagePreview(localUrl);
-      setFormData((prev) => ({ ...prev, imageUrl: localUrl }));
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setErrorMessage('Please select a valid image file (PNG, JPG, JPEG, WebP).');
+        return;
+      }
+
+      // Max size limit: 5MB
+      if (file.size > 5 * 1024 * 1024) {
+        setErrorMessage('Image size exceeds 5MB limit. Please choose a smaller photo.');
+        return;
+      }
+
+      setErrorMessage('');
+      setImageFile(file);
+      setImagePreview(URL.createObjectURL(file));
     }
   };
 
-  const handleFormSubmit = (e) => {
+  const handleFormSubmit = async (e) => {
     e.preventDefault();
     setErrorMessage('');
 
-    const { name, category, price, condition, description, imageUrl } = formData;
+    if (!user) {
+      setErrorMessage('You must be logged in to create a listing.');
+      return;
+    }
 
-    // Basic frontend validation
+    const { name, category, price, condition, description } = formData;
+
+    // Field validations
     if (!name.trim()) {
       setErrorMessage('Please provide a product title/name.');
       return;
@@ -65,30 +89,37 @@ export default function SellProduct() {
       return;
     }
 
-    // Default placeholder image if none selected
-    const fallbackImage =
-      imageUrl ||
-      'https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?auto=format&fit=crop&w=800&q=80';
+    if (!imageFile) {
+      setErrorMessage('Please select an image of your item to upload.');
+      return;
+    }
 
-    const newProductPreview = {
-      id: 999, // Temporary demo ID
-      name: name.trim(),
-      category,
-      price: Number(price),
-      condition,
-      image: fallbackImage,
-      description: description.trim(),
-      status: 'available',
-      seller: {
-        name: 'You (Current Student)',
-        email: 'your.rollno@nitj.ac.in',
-        hostel: 'NITJ Hostel',
-        isVerified: true,
-      },
-    };
+    setIsSubmitting(true);
 
-    setCreatedPreviewProduct(newProductPreview);
-    window.scrollTo({ top: 300, behavior: 'smooth' });
+    try {
+      const { data, error } = await createListing({
+        title: name.trim(),
+        description: description.trim(),
+        price: Number(price),
+        category,
+        condition,
+        imageFile,
+        userId: user.id,
+      });
+
+      if (error) {
+        setErrorMessage(error.message || 'Failed to save listing. Please try again.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      setCreatedProduct(data);
+      window.scrollTo({ top: 150, behavior: 'smooth' });
+    } catch (err) {
+      setErrorMessage(err.message || 'An unexpected error occurred while posting the item.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleResetForm = () => {
@@ -98,10 +129,10 @@ export default function SellProduct() {
       price: '',
       condition: 'Good',
       description: '',
-      imageUrl: '',
     });
+    setImageFile(null);
     setImagePreview(null);
-    setCreatedPreviewProduct(null);
+    setCreatedProduct(null);
     setErrorMessage('');
   };
 
@@ -116,53 +147,50 @@ export default function SellProduct() {
           </Link>
           <h1 className="section-title">List an Item for Sale</h1>
           <p className="section-subtitle">
-            Pass on your textbooks, cycles, or hostel appliances to fellow NITJ students
+            Upload your second-hand textbooks, cycles, or hostel essentials to the Supabase campus marketplace
           </p>
         </div>
 
-        {/* Prominent Demo Notice */}
-        <div className="demo-notice-banner">
-          <Info size={18} />
-          <span>
-            <strong>Phase 2 Frontend Demo:</strong> This form is fully interactive
-            on the frontend. Backend database storage and image uploading are not yet
-            connected, so submitted listings are demonstrated as local previews.
-          </span>
-        </div>
-
-        {/* If a preview product was submitted */}
-        {createdPreviewProduct ? (
+        {/* If product was successfully created in Supabase */}
+        {createdProduct ? (
           <div className="sell-success-container">
-            <div className="auth-alert success-alert">
-              <CheckCircle2 size={20} />
+            <div className="auth-alert success-alert" role="status">
+              <CheckCircle2 size={22} />
               <div>
-                <strong>Listing Preview Created Successfully!</strong>
-                <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
-                  Backend integration has not been implemented yet, so this listing is
-                  not saved to a database. Below is how your listing appears to other students:
+                <strong>Listing Published Successfully!</strong>
+                <p style={{ margin: '0.25rem 0 0', fontSize: '0.9rem' }}>
+                  Your listing has been saved to the database and your image was stored in the{' '}
+                  <code>product-images</code> bucket. Other NITJ students can now view it on the marketplace.
                 </p>
               </div>
             </div>
 
             <div className="preview-card-wrapper">
-              <h3 className="preview-heading">Product Card Preview:</h3>
+              <h3 className="preview-heading">Your Live Marketplace Card:</h3>
               <div style={{ maxWidth: '320px', margin: '0 auto' }}>
-                <ProductCard product={createdPreviewProduct} />
+                <ProductCard product={createdProduct} />
               </div>
             </div>
 
             <div className="preview-actions-row">
+              <Link to={`/product/${createdProduct.id}`} className="btn-curved-black">
+                <ExternalLink size={16} />
+                <span>View Live Listing</span>
+              </Link>
+
+              <Link to="/my-listings" className="btn-curved-outline">
+                <ListOrdered size={16} />
+                <span>Manage My Listings</span>
+              </Link>
+
               <button
                 type="button"
-                className="btn-curved-black"
+                className="btn-curved-grey"
                 onClick={handleResetForm}
               >
                 <PlusCircle size={16} />
                 <span>List Another Item</span>
               </button>
-              <Link to="/" className="btn-curved-outline">
-                <span>Go to Homepage</span>
-              </Link>
             </div>
           </div>
         ) : (
@@ -189,6 +217,7 @@ export default function SellProduct() {
                   placeholder="e.g. Higher Engineering Mathematics (B.S. Grewal)"
                   value={formData.name}
                   onChange={handleChange}
+                  disabled={isSubmitting}
                 />
               </div>
 
@@ -204,6 +233,7 @@ export default function SellProduct() {
                     className="form-select"
                     value={formData.category}
                     onChange={handleChange}
+                    disabled={isSubmitting}
                   >
                     {CATEGORIES.map((cat) => (
                       <option key={cat} value={cat}>
@@ -226,6 +256,7 @@ export default function SellProduct() {
                     placeholder="e.g. 450"
                     value={formData.price}
                     onChange={handleChange}
+                    disabled={isSubmitting}
                   />
                 </div>
               </div>
@@ -248,6 +279,7 @@ export default function SellProduct() {
                         checked={formData.condition === cond}
                         onChange={handleChange}
                         className="sr-only"
+                        disabled={isSubmitting}
                       />
                       <span>{cond}</span>
                     </label>
@@ -268,12 +300,13 @@ export default function SellProduct() {
                   placeholder="Describe the condition, semester relevance, accessories included, or campus handover point..."
                   value={formData.description}
                   onChange={handleChange}
+                  disabled={isSubmitting}
                 />
               </div>
 
               {/* Image Selection */}
               <div className="form-group">
-                <label className="form-label">Product Image</label>
+                <label className="form-label">Product Image *</label>
                 <div className="image-upload-box">
                   <input
                     id="product-image-file"
@@ -281,11 +314,12 @@ export default function SellProduct() {
                     accept="image/*"
                     onChange={handleImageFileChange}
                     className="file-input-hidden"
+                    disabled={isSubmitting}
                   />
                   <label htmlFor="product-image-file" className="file-upload-label">
                     <ImageIcon size={24} />
-                    <span>Click to select an image from your device</span>
-                    <span className="upload-hint">Frontend preview only. No image is uploaded externally.</span>
+                    <span>Click to select product image</span>
+                    <span className="upload-hint">Image will be uploaded to Supabase Storage under your student ID folder</span>
                   </label>
 
                   {imagePreview && (
@@ -296,8 +330,9 @@ export default function SellProduct() {
                         className="remove-img-btn"
                         onClick={() => {
                           setImagePreview(null);
-                          setFormData((prev) => ({ ...prev, imageUrl: '' }));
+                          setImageFile(null);
                         }}
+                        disabled={isSubmitting}
                       >
                         Remove
                       </button>
@@ -308,14 +343,29 @@ export default function SellProduct() {
 
               {/* Submit CTA */}
               <div className="sell-form-actions">
-                <button type="submit" className="btn-curved-black sell-submit-btn">
-                  <PlusCircle size={17} />
-                  <span>Post Listing Preview</span>
+                <button
+                  type="submit"
+                  className="btn-curved-black sell-submit-btn"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 size={17} className="spin-icon" />
+                      <span>Uploading &amp; Publishing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <PlusCircle size={17} />
+                      <span>Publish Listing</span>
+                    </>
+                  )}
                 </button>
+
                 <button
                   type="button"
                   className="btn-curved-grey"
                   onClick={handleResetForm}
+                  disabled={isSubmitting}
                 >
                   <RotateCcw size={15} />
                   <span>Reset</span>

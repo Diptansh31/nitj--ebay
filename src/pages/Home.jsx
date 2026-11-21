@@ -1,32 +1,59 @@
-import { useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import CategoryFilter from '../components/CategoryFilter';
 import ProductGrid from '../components/ProductGrid';
-import { SAMPLE_PRODUCTS } from '../data/products';
-import { ShieldCheck, ArrowRight, Zap, RefreshCw } from 'lucide-react';
+import { getAvailableListings } from '../services/listingService';
+import { ShieldCheck, ArrowRight, Zap, RefreshCw, AlertCircle } from 'lucide-react';
 
 export default function Home() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [allListings, setAllListings] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Read selected category from URL search params (?category=Books) or default to 'All'
   const selectedCategory = searchParams.get('category') || 'All';
 
+  // Fetch available products from Supabase
+  const fetchListings = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    const { data, error: fetchErr } = await getAvailableListings('All');
+
+    if (fetchErr) {
+      console.error('Error fetching marketplace listings:', fetchErr);
+      setError(fetchErr.message || 'Unable to load listings. Please check connection.');
+      setAllListings([]);
+    } else {
+      setAllListings(data || []);
+    }
+
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchListings();
+  }, [fetchListings]);
+
   // Filter products based on selectedCategory
   const filteredProducts = useMemo(() => {
     if (selectedCategory === 'All') {
-      return SAMPLE_PRODUCTS;
+      return allListings;
     }
-    return SAMPLE_PRODUCTS.filter((item) => item.category === selectedCategory);
-  }, [selectedCategory]);
+    return allListings.filter((item) => item.category === selectedCategory);
+  }, [allListings, selectedCategory]);
 
   // Compute item counts per category for pills
   const categoryCounts = useMemo(() => {
     const counts = {};
-    SAMPLE_PRODUCTS.forEach((product) => {
-      counts[product.category] = (counts[product.category] || 0) + 1;
+    allListings.forEach((product) => {
+      if (product.category) {
+        counts[product.category] = (counts[product.category] || 0) + 1;
+      }
     });
     return counts;
-  }, []);
+  }, [allListings]);
 
   const handleSelectCategory = (category) => {
     if (category === 'All') {
@@ -112,18 +139,41 @@ export default function Home() {
         <CategoryFilter
           selectedCategory={selectedCategory}
           onSelectCategory={handleSelectCategory}
-          totalItemsCount={SAMPLE_PRODUCTS.length}
+          totalItemsCount={allListings.length}
           categoryCounts={categoryCounts}
         />
       </div>
 
       {/* 3. Products Grid Section */}
       <div className="container" id="products-section">
-        <ProductGrid
-          products={filteredProducts}
-          selectedCategory={selectedCategory}
-          onResetCategory={handleResetCategory}
-        />
+        {loading ? (
+          <div className="auth-loading-container" role="status" aria-live="polite">
+            <div className="auth-loading-spinner" />
+            <p className="auth-loading-text">Loading fresh campus listings from Supabase...</p>
+          </div>
+        ) : error ? (
+          <div className="empty-state-box">
+            <div className="empty-icon-circle" style={{ backgroundColor: '#fee2e2', color: '#991b1b' }}>
+              <AlertCircle size={32} />
+            </div>
+            <h3 className="empty-title">Failed to load marketplace listings</h3>
+            <p className="empty-description">{error}</p>
+            <button
+              type="button"
+              className="btn-curved-black"
+              onClick={fetchListings}
+            >
+              <RefreshCw size={16} />
+              <span>Retry Loading</span>
+            </button>
+          </div>
+        ) : (
+          <ProductGrid
+            products={filteredProducts}
+            selectedCategory={selectedCategory}
+            onResetCategory={handleResetCategory}
+          />
+        )}
       </div>
     </div>
   );

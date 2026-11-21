@@ -5,6 +5,8 @@ import {
   ChevronDown,
   PlusCircle,
   LogIn,
+  LogOut,
+  User,
   UserPlus,
   Home,
   Menu,
@@ -18,6 +20,7 @@ import {
   Layers,
   ListOrdered,
 } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
 import { CATEGORIES } from '../constants/categories';
 
 // Helper icon mapping for category dropdown items
@@ -42,10 +45,17 @@ export default function Navbar({ selectedCategory, onSelectCategory }) {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const dropdownRef = useRef(null);
-  
+
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams] = useSearchParams();
+
+  // Extract display name from user metadata, falling back to email prefix
+  const studentName =
+    user?.user_metadata?.full_name ||
+    user?.email?.split('@')[0] ||
+    'Student';
 
   // Active category is either prop or from URL ?category=...
   const activeCategory =
@@ -61,6 +71,15 @@ export default function Navbar({ selectedCategory, onSelectCategory }) {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/');
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+  };
 
   const handleCategoryClick = (category) => {
     setIsDropdownOpen(false);
@@ -172,16 +191,18 @@ export default function Navbar({ selectedCategory, onSelectCategory }) {
             )}
           </div>
 
-          {/* My Listings link */}
-          <Link
-            to="/my-listings"
-            className={`nav-link-btn ${
-              location.pathname === '/my-listings' ? 'active' : ''
-            }`}
-          >
-            <ListOrdered size={17} />
-            <span>My Listings</span>
-          </Link>
+          {/* My Listings link - Visible when logged in */}
+          {user && (
+            <Link
+              to="/my-listings"
+              className={`nav-link-btn ${
+                location.pathname === '/my-listings' ? 'active' : ''
+              }`}
+            >
+              <ListOrdered size={17} />
+              <span>My Listings</span>
+            </Link>
+          )}
         </nav>
 
         {/* Right: Actions (Sell item + Auth buttons) */}
@@ -191,27 +212,48 @@ export default function Navbar({ selectedCategory, onSelectCategory }) {
             <span>Sell an Item</span>
           </Link>
 
-          <div className="auth-buttons-group">
-            <Link
-              to="/login"
-              className={`btn-curved-outline login-btn ${
-                location.pathname === '/login' ? 'active-auth' : ''
-              }`}
-            >
-              <LogIn size={16} />
-              <span>Login</span>
-            </Link>
+          {user ? (
+            /* Logged in state: Student name & Logout */
+            <div className="auth-buttons-group">
+              <div className="user-profile-badge" title={`Signed in as ${user.email}`}>
+                <User size={15} />
+                <span className="user-name-text">{studentName}</span>
+              </div>
 
-            <Link
-              to="/register"
-              className={`btn-curved-grey register-btn ${
-                location.pathname === '/register' ? 'active-auth' : ''
-              }`}
-            >
-              <UserPlus size={16} />
-              <span>Register</span>
-            </Link>
-          </div>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="btn-curved-outline logout-btn"
+                title="Log out of your account"
+              >
+                <LogOut size={16} />
+                <span>Logout</span>
+              </button>
+            </div>
+          ) : (
+            /* Logged out state: Login & Register */
+            <div className="auth-buttons-group">
+              <Link
+                to="/login"
+                className={`btn-curved-outline login-btn ${
+                  location.pathname === '/login' ? 'active-auth' : ''
+                }`}
+              >
+                <LogIn size={16} />
+                <span>Login</span>
+              </Link>
+
+              <Link
+                to="/register"
+                className={`btn-curved-grey register-btn ${
+                  location.pathname === '/register' ? 'active-auth' : ''
+                }`}
+              >
+                <UserPlus size={16} />
+                <span>Register</span>
+              </Link>
+            </div>
+          )}
         </div>
 
         {/* Mobile Hamburger Toggle */}
@@ -239,16 +281,20 @@ export default function Navbar({ selectedCategory, onSelectCategory }) {
               <Home size={18} />
               <span>Home (All Items)</span>
             </Link>
-            <Link
-              to="/my-listings"
-              className={`mobile-drawer-item ${
-                location.pathname === '/my-listings' ? 'active' : ''
-              }`}
-              onClick={() => setIsMobileMenuOpen(false)}
-            >
-              <ListOrdered size={18} />
-              <span>My Listings</span>
-            </Link>
+
+            {/* My Listings link on mobile - only when logged in */}
+            {user && (
+              <Link
+                to="/my-listings"
+                className={`mobile-drawer-item ${
+                  location.pathname === '/my-listings' ? 'active' : ''
+                }`}
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                <ListOrdered size={18} />
+                <span>My Listings</span>
+              </Link>
+            )}
           </div>
 
           <div className="mobile-drawer-section">
@@ -279,24 +325,46 @@ export default function Navbar({ selectedCategory, onSelectCategory }) {
               <PlusCircle size={18} />
               <span>Sell an Item</span>
             </Link>
-            <div className="mobile-auth-row">
-              <Link
-                to="/login"
-                className="btn-curved-outline full-width"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                <LogIn size={16} />
-                <span>Login</span>
-              </Link>
-              <Link
-                to="/register"
-                className="btn-curved-grey full-width"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                <UserPlus size={16} />
-                <span>Register</span>
-              </Link>
-            </div>
+
+            {user ? (
+              <div className="mobile-logged-in-box">
+                <div className="user-profile-badge full-width mobile-user-badge">
+                  <User size={16} />
+                  <span className="user-name-text">{studentName}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    handleLogout();
+                  }}
+                  className="btn-curved-outline full-width logout-btn"
+                  style={{ marginTop: '0.5rem' }}
+                >
+                  <LogOut size={16} />
+                  <span>Logout</span>
+                </button>
+              </div>
+            ) : (
+              <div className="mobile-auth-row">
+                <Link
+                  to="/login"
+                  className="btn-curved-outline full-width"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <LogIn size={16} />
+                  <span>Login</span>
+                </Link>
+                <Link
+                  to="/register"
+                  className="btn-curved-grey full-width"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                >
+                  <UserPlus size={16} />
+                  <span>Register</span>
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       )}

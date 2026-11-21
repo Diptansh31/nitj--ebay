@@ -1,5 +1,6 @@
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { SAMPLE_PRODUCTS } from '../data/products';
+import { getListingById } from '../services/listingService';
 import {
   ArrowLeft,
   Tag,
@@ -9,18 +10,56 @@ import {
   MapPin,
   GraduationCap,
   AlertCircle,
-  HelpCircle,
   CheckCircle2,
-  XCircle,
 } from 'lucide-react';
 
 export default function ProductDetails() {
   const { id } = useParams();
-  const productId = parseInt(id, 10);
-  const product = SAMPLE_PRODUCTS.find((p) => p.id === productId);
+  const [product, setProduct] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [copySuccess, setCopySuccess] = useState(false);
 
-  // Fallback if product ID does not exist
-  if (!product) {
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadProduct() {
+      setLoading(true);
+      setError(null);
+
+      const { data, error: fetchErr } = await getListingById(id);
+
+      if (isMounted) {
+        if (fetchErr || !data) {
+          setError(fetchErr?.message || 'Listing not found.');
+          setProduct(null);
+        } else {
+          setProduct(data);
+        }
+        setLoading(false);
+      }
+    }
+
+    loadProduct();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="container details-not-found-container">
+        <div className="auth-loading-container" role="status" aria-live="polite">
+          <div className="auth-loading-spinner" />
+          <p className="auth-loading-text">Loading product details from Supabase...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Fallback if product does not exist
+  if (error || !product) {
     return (
       <div className="container details-not-found-container">
         <div className="empty-state-box">
@@ -29,8 +68,7 @@ export default function ProductDetails() {
           </div>
           <h2 className="empty-title">Product Not Found</h2>
           <p className="empty-description">
-            We couldn't find any campus listing with ID #{id}. It may have been
-            removed or purchased by another student.
+            {error || `We couldn't find any campus listing with ID #${id}. It may have been removed or purchased by another student.`}
           </p>
           <Link to="/" className="btn-curved-black">
             <ArrowLeft size={16} />
@@ -41,14 +79,13 @@ export default function ProductDetails() {
     );
   }
 
-  const { name, price, category, condition, image, description, seller, status } =
-    product;
+  const { title, price, category, condition, image, description, seller, status } = product;
 
   const formattedPrice = new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
     maximumFractionDigits: 0,
-  }).format(price);
+  }).format(price || 0);
 
   const getConditionClass = (cond) => {
     const c = cond?.toLowerCase() || '';
@@ -60,11 +97,22 @@ export default function ProductDetails() {
   const isSold = status === 'sold';
 
   // Construct mailto link with pre-filled subject and friendly body
-  const mailSubject = encodeURIComponent(`[NITJ eBay] Inquiry about: ${name}`);
+  const sellerEmail = seller?.email || 'student@nitj.ac.in';
+  const sellerName = seller?.name || 'Fellow NITJ Student';
+
+  const mailSubject = encodeURIComponent(`[NITJ eBay] Inquiry about: ${title}`);
   const mailBody = encodeURIComponent(
-    `Hi ${seller?.name || 'Seller'},\n\nI saw your listing for "${name}" on NITJ eBay (₹${price}) and I would like to buy it. Are you available for handover on campus?\n\nThanks!\n[Your Name]\n[Your Hostel/Room]`
+    `Hi ${sellerName},\n\nI saw your listing for "${title}" on NITJ eBay (₹${price}) and I would like to buy it. Are you available for handover on campus?\n\nThanks!\n[Your Name]\n[Your Hostel/Room]`
   );
-  const mailtoLink = `mailto:${seller?.email}?subject=${mailSubject}&body=${mailBody}`;
+  const mailtoLink = `mailto:${sellerEmail}?subject=${mailSubject}&body=${mailBody}`;
+
+  const handleCopyEmail = () => {
+    if (sellerEmail) {
+      navigator.clipboard.writeText(sellerEmail);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2500);
+    }
+  };
 
   return (
     <div className="product-details-page">
@@ -83,7 +131,7 @@ export default function ProductDetails() {
               {category}
             </Link>
             <span className="breadcrumb-separator">/</span>
-            <span className="breadcrumb-current">{name}</span>
+            <span className="breadcrumb-current">{title}</span>
           </div>
         </div>
 
@@ -94,7 +142,7 @@ export default function ProductDetails() {
             <div className="details-image-card">
               <img
                 src={image}
-                alt={name}
+                alt={title}
                 className="details-main-image"
                 onError={(e) => {
                   e.currentTarget.src =
@@ -140,7 +188,7 @@ export default function ProductDetails() {
             </div>
 
             {/* Product Title */}
-            <h1 className="details-product-title">{name}</h1>
+            <h1 className="details-product-title">{title}</h1>
 
             {/* Price Box */}
             <div className="details-price-box">
@@ -154,7 +202,7 @@ export default function ProductDetails() {
             {/* Product Description */}
             <div className="details-section">
               <h3 className="details-section-title">Item Description</h3>
-              <p className="details-description-text">{description}</p>
+              <p className="details-description-text">{description || 'No description provided.'}</p>
             </div>
 
             {/* Specifications Summary */}
@@ -185,33 +233,10 @@ export default function ProductDetails() {
                   </p>
                 </div>
 
-                {/* Verification Status Indicator (Demo Data) */}
-                <div
-                  className={`seller-verification-badge ${
-                    seller?.isVerified ? 'verified' : 'unverified'
-                  }`}
-                  title="Demo status indicator. College email verification will be connected in future phases."
-                >
-                  {seller?.isVerified ? (
-                    <>
-                      <CheckCircle2 size={15} />
-                      <span>Verified Student (Demo)</span>
-                    </>
-                  ) : (
-                    <>
-                      <XCircle size={15} />
-                      <span>Unverified (Demo)</span>
-                    </>
-                  )}
+                <div className="seller-verification-badge verified">
+                  <CheckCircle2 size={15} />
+                  <span>Verified NITJ Student</span>
                 </div>
-              </div>
-
-              {/* Demo Notice */}
-              <div className="demo-verification-note">
-                <HelpCircle size={13} />
-                <span>
-                  Demo verification status only. College email authentication is not yet implemented.
-                </span>
               </div>
 
               {/* Seller details row */}
@@ -220,10 +245,7 @@ export default function ProductDetails() {
                   <GraduationCap size={16} className="seller-icon" />
                   <div>
                     <span className="seller-detail-label">Seller Name</span>
-                    <p className="seller-detail-val">{seller?.name || 'Campus Student'}</p>
-                    {seller?.branch && (
-                      <span className="seller-sub-val">{seller.branch}</span>
-                    )}
+                    <p className="seller-detail-val">{sellerName}</p>
                   </div>
                 </div>
 
@@ -231,8 +253,8 @@ export default function ProductDetails() {
                   <Mail size={16} className="seller-icon" />
                   <div>
                     <span className="seller-detail-label">College Email</span>
-                    <a href={`mailto:${seller?.email}`} className="seller-email-link">
-                      {seller?.email || 'student@nitj.ac.in'}
+                    <a href={`mailto:${sellerEmail}`} className="seller-email-link">
+                      {sellerEmail}
                     </a>
                   </div>
                 </div>
@@ -240,8 +262,8 @@ export default function ProductDetails() {
                 <div className="seller-detail-item">
                   <MapPin size={16} className="seller-icon" />
                   <div>
-                    <span className="seller-detail-label">Hostel Handover Point</span>
-                    <p className="seller-detail-val">{seller?.hostel || 'NITJ Campus Hostels'}</p>
+                    <span className="seller-detail-label">Campus Handover</span>
+                    <p className="seller-detail-val">NIT Jalandhar Campus &amp; Hostels</p>
                   </div>
                 </div>
               </div>
@@ -259,14 +281,9 @@ export default function ProductDetails() {
                 <button
                   type="button"
                   className="btn-curved-outline copy-email-btn"
-                  onClick={() => {
-                    if (seller?.email) {
-                      navigator.clipboard.writeText(seller.email);
-                      alert(`Copied seller email: ${seller.email}`);
-                    }
-                  }}
+                  onClick={handleCopyEmail}
                 >
-                  <span>Copy Email</span>
+                  <span>{copySuccess ? 'Copied to Clipboard!' : 'Copy Email'}</span>
                 </button>
               </div>
             </div>

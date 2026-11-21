@@ -1,19 +1,27 @@
 import { Tag, Sparkles, CheckCircle2, XCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { getListingImageUrl, DEFAULT_PRODUCT_IMAGE } from '../services/listingService';
 
 export default function ProductCard({
   product,
   showStatus = false,
   customActions = null,
 }) {
-  const { id, name, price, category, condition, image, status } = product;
+  const { id, name, title, price, category, condition, image, image_path, status } = product;
+
+  // Support both title (Supabase DB schema) and name (legacy property)
+  const displayTitle = title || name || 'Untitled Listing';
+
+  // Support both pre-formatted image URL and raw image_path
+  const displayImage =
+    image || (image_path ? getListingImageUrl(image_path) : DEFAULT_PRODUCT_IMAGE);
 
   // Format price in Indian Rupee format
   const formattedPrice = new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
     maximumFractionDigits: 0,
-  }).format(price);
+  }).format(price || 0);
 
   // Condition styling variant
   const getConditionClass = (cond) => {
@@ -31,24 +39,22 @@ export default function ProductCard({
       <Link
         to={`/product/${id}`}
         className="product-image-container"
-        aria-label={`View details for ${name}`}
+        aria-label={`View details for ${displayTitle}`}
       >
         <img
-          src={image}
-          alt={name}
+          src={displayImage}
+          alt={displayTitle}
           className="product-image"
           loading="lazy"
           onError={(e) => {
-            // Fallback placeholder image if image URL fails to load
-            e.currentTarget.src =
-              'https://images.unsplash.com/photo-1584438784894-089d6a62b8fa?auto=format&fit=crop&w=800&q=80';
+            e.currentTarget.src = DEFAULT_PRODUCT_IMAGE;
           }}
         />
 
         {/* Condition Badge pinned on top-right */}
         <div className={`condition-badge ${getConditionClass(condition)}`}>
           <Sparkles size={12} />
-          <span>{condition}</span>
+          <span>{condition || 'Good'}</span>
         </div>
 
         {/* Optional Status Badge (e.g. for My Listings) */}
@@ -71,9 +77,9 @@ export default function ProductCard({
         </div>
 
         {/* Product title - Clickable */}
-        <h3 className="product-title" title={name}>
+        <h3 className="product-title" title={displayTitle}>
           <Link to={`/product/${id}`} className="product-title-link">
-            {name}
+            {displayTitle}
           </Link>
         </h3>
 
@@ -87,7 +93,7 @@ export default function ProductCard({
           <Link
             to={`/product/${id}`}
             className="btn-curved-black view-item-btn"
-            aria-label={`View ${name}`}
+            aria-label={`View ${displayTitle}`}
           >
             View
           </Link>
