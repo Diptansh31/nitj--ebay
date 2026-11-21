@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NITJ eBay – Student Marketplace</title>
+    <script>
+      // Single Page App redirect for GitHub Pages with HashRouter
+      // When a user accesses a direct URL (like /nitj--ebay/product/3 or /nitj--ebay/login?code=...),
+      // GitHub Pages returns this 404.html. This script preserves path and query parameters
+      // and redirects to the HashRouter format (/#/product/3 or ?code=...#/login).
+      (function() {
+        var base = '/nitj--ebay/';
+        var path = window.location.pathname;
+        var search = window.location.search || '';
+        var hash = window.location.hash || '';
+
+        var subpath = '';
+        if (path.startsWith(base)) {
+          subpath = path.slice(base.length);
+        } else {
+          subpath = path.replace(/^\//, '');
+        }
+        subpath = subpath.replace(/^\/+|\/+$/g, '');
+
+        var targetHash = '#/' + (subpath ? subpath : '');
+        if (hash) {
+          if (hash.startsWith('#')) {
+            targetHash = targetHash + (targetHash.includes('?') ? '&' : '?') + hash.slice(1);
+          }
+        }
+
+        var destination = base + search + targetHash;
+        window.location.replace(destination);
+      })();
+    </script>
+  </head>
+  <body>
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; text-align: center; padding: 3rem 1rem;">
+      <h2>Redirecting to NITJ eBay...</h2>
+      <p>If you are not redirected automatically within a few seconds, <a id="redirect-link" href="/nitj--ebay/">click here to return home</a>.</p>
+    </div>
+    <script>
+      var base = '/nitj--ebay/';
+      var link = document.getElementById('redirect-link');
+      if (link) link.href = base;
+    </script>
+  </body>
+</html>

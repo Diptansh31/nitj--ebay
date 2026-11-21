@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import CategoryFilter from '../components/CategoryFilter';
 import ProductGrid from '../components/ProductGrid';
 import { getAvailableListings } from '../services/listingService';
@@ -89,14 +89,21 @@ export default function Home() {
           </p>
 
           <div className="hero-cta-group">
-            <a href="#products-section" className="btn-curved-black hero-primary-btn">
+            <a
+              href="#products-section"
+              onClick={(e) => {
+                e.preventDefault();
+                document.getElementById('products-section')?.scrollIntoView({ behavior: 'smooth' });
+              }}
+              className="btn-curved-black hero-primary-btn"
+            >
               <span>Browse Campus Items</span>
               <ArrowRight size={17} />
             </a>
 
-            <a href="/sell" className="btn-curved-grey hero-secondary-btn">
+            <Link to="/sell" className="btn-curved-grey hero-secondary-btn">
               <span>List an Item for Sale</span>
-            </a>
+            </Link>
           </div>
 
           {/* Quick Hero Highlights */}

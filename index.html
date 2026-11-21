@@ -5,6 +5,20 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>NITJ eBay – Student Marketplace</title>
+    <script>
+      // Client-side route normalization for GitHub Pages / Vite dev server with HashRouter
+      // Redirects direct path requests (e.g. /nitj--ebay/login) to the corresponding hash route (/#/login)
+      (function() {
+        var base = '/nitj--ebay/';
+        var path = window.location.pathname;
+        if (path.startsWith(base)) {
+          var subpath = path.slice(base.length).replace(/^\/+|\/+$/g, '');
+          if (subpath && !window.location.hash) {
+            window.location.replace(base + window.location.search + '#/' + subpath);
+          }
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

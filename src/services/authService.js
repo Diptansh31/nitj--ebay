@@ -67,9 +67,18 @@ export const registerUser = async ({ fullName, email, password, confirmPassword 
     }
 
     // 2. Determine redirect URL for email verification
-    const redirectUrl = typeof window !== 'undefined'
-      ? `${window.location.origin}/login`
-      : undefined;
+    // Resolves base path for GitHub Pages (/nitj--ebay/login) while preserving localhost dev redirect
+    let redirectUrl;
+    if (typeof window !== 'undefined') {
+      if (import.meta.env.VITE_AUTH_REDIRECT_URL) {
+        redirectUrl = import.meta.env.VITE_AUTH_REDIRECT_URL;
+      } else {
+        const origin = window.location.origin;
+        const base = import.meta.env.BASE_URL || '/';
+        const normalizedBase = base.endsWith('/') ? base : `${base}/`;
+        redirectUrl = `${origin}${normalizedBase}login`;
+      }
+    }
 
     // 3. Register with Supabase Auth
     // Note: full_name is passed in options.data so the backend trigger creates the profile record
